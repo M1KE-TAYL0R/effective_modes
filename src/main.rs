@@ -29,10 +29,10 @@ fn main() {
 
     println!("test: {}", enhancement_function(1.0, 0.0, &prm));
 
-    plot_disp(dispersion, omegas, q_pars);
+    // _plot_disp(dispersion, omegas, q_pars);
 }
 
-fn plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
+fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
     let mut fig = Figure::new();
 
     let fname = "test.png";
