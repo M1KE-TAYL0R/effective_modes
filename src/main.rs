@@ -7,32 +7,57 @@ fn main() {
         l_c: 0.0,
         c: 1.0 / 137.0,
         r: 0.9,
-        n_w_bins: 1000,
-        n_q_bins: 1000
+        n_w: 2000,
+        n_q: 2000,
+        n_w_bins: 200,
+        d_theta: 2.0 * PI,
+        q_range: (0.0,150.0),
+        w_range: (0.9, 1.5)
     };
 
     let w_0 = 1.0;
     let q_0 = w_0/prm.c;
     prm.l_c  = 2.0 * PI / q_0;
 
-    let omegas = Array1::linspace(1.0, 1.5,prm.n_w_bins);
-    let q_pars = Array1::linspace(0.0, 1.0, prm.n_q_bins);
+    let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
+    let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let mut dispersion: Array2<f64> = Array2::zeros((prm.n_w_bins,prm.n_q_bins));
+    let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
 
-    dispersion.indexed_iter_mut().for_each(|(ind, val)| {
-        let q_par = q_pars[ind.1];
-        let omega = omegas[ind.0];
+    disp.indexed_iter_mut().for_each(|(ind, val)| {
+        let q_par = q_pars[ind.0];
+        let omega = omegas[ind.1];
 
         *val = enhancement_function(omega, q_par, &prm);
     });
 
-    println!("test: {}", enhancement_function(1.0, 0.0, &prm));
+    let dispersion = disp.t().to_owned();
 
-    // _plot_disp(dispersion, omegas, q_pars);
+    println!("test: {}", enhancement_function(1.0, 100.0, &prm));
+
+    plot_disp(dispersion, omegas, q_pars);
 }
 
-fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
+fn _integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars_bin: Array1<f64>, prm:&Parameters) -> f64{
+    
+    let dq = (prm.q_range.1 - prm.q_range.0) / (prm.n_q as f64);
+    let dw = (prm.w_range.1 - prm.w_range.0) / (prm.n_w as f64);
+
+    bin.indexed_iter_mut().for_each(|(ind, val)| {
+        let q_par = q_pars_bin[ind.0];
+        let omega = omegas_bin[ind.1];
+        let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
+
+        let jacobian = q_par * omega / prm.c / q_z;
+
+        *val = val.clone() * jacobian;
+    });
+
+   bin.sum() * prm.d_theta * dq* dw
+
+}
+
+fn plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
     let mut fig = Figure::new();
 
     let fname = "test.png";
@@ -51,7 +76,7 @@ fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) 
     // .set_y_label("", &[Font("Helvetica", 36.0), TextColor("white")])
     // .set_margins(&[MarginLeft(0.07),MarginBottom(0.07), MarginRight(0.87)])
     // .set_border(true, &[Bottom,Right,Left,Top], &[Color("white")])
-    .image(dispersion, q_pars.len(), omegas.len(), Some((0.0,0.0,q_pars.last().unwrap().clone(),omegas.last().unwrap().clone())), &[])
+    .image(dispersion, omegas.len(), q_pars.len(), Some((0.0,0.0,q_pars.last().unwrap().clone(),omegas.last().unwrap().clone())), &[])
     ;
 
     let message = fig.save_to_png(fname, 1440, 1080);
@@ -63,7 +88,11 @@ fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) 
 
 fn enhancement_function (omega:f64, q_par:f64, prm:&Parameters) -> f64 {
 
-    let q_z = (omega.powi(2) / prm.c.powi(2) + q_par.powi(2)).sqrt();
+    let q_z = (omega.powi(2) / prm.c.powi(2) - q_par.powi(2)).sqrt();
+
+    if q_z <  PI / prm.l_c {
+        return 0.0;
+    }
     // let jacobian = omega / prm.c.powi(2);
     let t = 1.0 - prm.r;
 
@@ -74,6 +103,10 @@ pub struct Parameters {
     pub l_c: f64,
     pub c: f64,
     pub r: f64,
+    pub n_w: usize,
+    pub n_q: usize,
     pub n_w_bins: usize,
-    pub n_q_bins: usize
+    pub d_theta: f64,
+    pub q_range: (f64,f64),
+    pub w_range: (f64,f64)
 }
