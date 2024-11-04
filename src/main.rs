@@ -13,7 +13,7 @@ fn main() {
         n_q: 2000,
         n_w_bins: 500,
         d_theta: 2.0 * PI,
-        q_range: (0.0,150.0),
+        q_range: (0.0,500.0),
         w_range: (0.9, 3.0)
     };
 
@@ -35,12 +35,12 @@ fn main() {
 
     let dispersion = disp.t().to_owned();
 
-    let weights = bin_dispersion(&prm, omegas.clone(), q_pars, dispersion);
+    let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion.clone());
     plot_weights(weights, &prm, &omegas).unwrap();
 
     // println!("test: {}", enhancement_function(1.0, 100.0, &prm));
 
-    // plot_disp(dispersion, omegas, q_pars);
+    plot_disp(dispersion, omegas, q_pars);
 }
 
 fn plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Result<(), Box<dyn std::error::Error>> {
@@ -119,7 +119,7 @@ fn bin_dispersion (prm:&Parameters, omegas:Array1<f64>, q_pars: Array1<f64>, dis
     weights
 }
 
-fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
+fn plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
     let mut fig = Figure::new();
 
     let fname = "test.png";
