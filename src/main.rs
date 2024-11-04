@@ -1,18 +1,20 @@
 use std::f64::consts::PI;
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, s};
 use gnuplot::*;
+use plotters::prelude::*;
+use statrs::statistics::Statistics;
 
 fn main() {
     let mut prm = Parameters{
         l_c: 0.0,
         c: 1.0 / 137.0,
         r: 0.9,
-        n_w: 2000,
+        n_w: 50000,
         n_q: 2000,
-        n_w_bins: 200,
+        n_w_bins: 500,
         d_theta: 2.0 * PI,
         q_range: (0.0,150.0),
-        w_range: (0.9, 1.5)
+        w_range: (0.9, 3.0)
     };
 
     let w_0 = 1.0;
@@ -33,31 +35,91 @@ fn main() {
 
     let dispersion = disp.t().to_owned();
 
-    println!("test: {}", enhancement_function(1.0, 100.0, &prm));
+    let weights = bin_dispersion(&prm, omegas.clone(), q_pars, dispersion);
+    plot_weights(weights, &prm, &omegas).unwrap();
 
-    plot_disp(dispersion, omegas, q_pars);
+    // println!("test: {}", enhancement_function(1.0, 100.0, &prm));
+
+    // plot_disp(dispersion, omegas, q_pars);
 }
 
-fn _integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars_bin: Array1<f64>, prm:&Parameters) -> f64{
+fn plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Result<(), Box<dyn std::error::Error>> {
+    let omegas = omegas.slice(s![..;100]);
+
+    let x = omegas.to_vec();
+    let y: Vec<f64> = weights.to_vec();
+    let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
+
+    let root = SVGBackend::new("weights.svg", (1440,1080)).into_drawing_area();
+        
+    root.fill(&WHITE)?;
+    let mut chart = ChartBuilder::on(&root)
+        .margin(20)
+        // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
+        .x_label_area_size(70)
+        .y_label_area_size(100)
+        .build_cartesian_2d(prm.w_range.0..prm.w_range.1, 0.0 .. weights.max())?;
+
+    chart.configure_mesh()
+    // .x_label_style(("helvetica", 50*scale_factor))
+    // .y_label_style(("helvetica", 50*scale_factor))
+    // .disable_mesh()
+    // .set_all_tick_mark_size(20*scale_factor)
+    // .bold_line_style(original_style)
+    // .x_label_formatter(&|v| format!("{:.1}", v))
+    // .y_label_formatter(&|v| format!("{:.1}", v))
+    .draw()?;
+
+    chart.draw_series(LineSeries::new((data.clone()).into_iter().map(|(x,y)| (x, y)), BLUE))?;
+
+    println!("{:?}",data);
+    
+    Ok(())
+}
+
+fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f64>, prm:&Parameters) -> f64 {
     
     let dq = (prm.q_range.1 - prm.q_range.0) / (prm.n_q as f64);
     let dw = (prm.w_range.1 - prm.w_range.0) / (prm.n_w as f64);
 
     bin.indexed_iter_mut().for_each(|(ind, val)| {
-        let q_par = q_pars_bin[ind.0];
-        let omega = omegas_bin[ind.1];
+        let q_par = q_pars[ind.1];
+        let omega = omegas_bin[ind.0];
         let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
 
-        let jacobian = q_par * omega / prm.c / q_z;
+        let jacobian = omega / prm.c; //q_par * omega / prm.c / q_z;
 
-        *val = val.clone() * jacobian;
+        if !val.is_nan(){
+            *val = val.clone() * jacobian;
+        }
+        else {
+            *val = 0.0;
+        }
     });
 
-   bin.sum() * prm.d_theta * dq* dw
+   let weight = bin.sum() * prm.d_theta * dq* dw;
 
+   weight
 }
 
-fn plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
+fn bin_dispersion (prm:&Parameters, omegas:Array1<f64>, q_pars: Array1<f64>, dispersion:Array2<f64>) -> Array1<f64>{
+    
+    let bin_size = prm.n_w / prm.n_w_bins;
+    let mut weights: Array1<f64> = Array1::zeros( prm.n_w_bins);
+
+    for bin_ind in 0..(prm.n_w_bins -1) {
+        let omegas_bin = omegas.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size)]);
+        let bin = dispersion.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size),..]);
+
+        // println!("{:?}", omegas_bin.shape());
+
+        weights[bin_ind] = integrate_bin(bin.to_owned(), omegas_bin.to_owned(), &q_pars, prm);
+    }
+    
+    weights
+}
+
+fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
     let mut fig = Figure::new();
 
     let fname = "test.png";
