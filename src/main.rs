@@ -8,13 +8,13 @@ fn main() {
     let mut prm = Parameters{
         l_c: 0.0,
         c: 1.0 / 137.0,
-        r: 0.9,
+        r: 0.99,
         n_w: 50000,
-        n_q: 2000,
+        n_q: 8000,
         n_w_bins: 500,
         d_theta: 2.0 * PI,
         q_range: (0.0,500.0),
-        w_range: (0.9, 3.0)
+        w_range: (0.8, 1.5)
     };
 
     let w_0 = 1.0;
@@ -40,7 +40,7 @@ fn main() {
 
     // println!("test: {}", enhancement_function(1.0, 100.0, &prm));
 
-    plot_disp(dispersion, omegas, q_pars);
+    // plot_disp(dispersion, omegas, q_pars);
 }
 
 fn plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Result<(), Box<dyn std::error::Error>> {
@@ -72,7 +72,7 @@ fn plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Re
 
     chart.draw_series(LineSeries::new((data.clone()).into_iter().map(|(x,y)| (x, y)), BLUE))?;
 
-    println!("{:?}",data);
+    // println!("{:?}",data);
     
     Ok(())
 }
@@ -87,12 +87,13 @@ fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f
         let omega = omegas_bin[ind.0];
         let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
 
-        let jacobian = omega / prm.c; //q_par * omega / prm.c / q_z;
+        let jacobian =  omega / prm.c; //q_par * omega / prm.c / q_z;
 
-        if !val.is_nan(){
+        if (*val * jacobian).is_finite() {
             *val = val.clone() * jacobian;
         }
         else {
+            println!("Omega = {}, q_par = {}, q_z = {}",omega,q_par,q_z);
             *val = 0.0;
         }
     });
@@ -119,7 +120,7 @@ fn bin_dispersion (prm:&Parameters, omegas:Array1<f64>, q_pars: Array1<f64>, dis
     weights
 }
 
-fn plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
+fn _plot_disp (dispersion:Array2<f64>, omegas:Array1<f64>, q_pars: Array1<f64>) {
     let mut fig = Figure::new();
 
     let fname = "test.png";
@@ -152,7 +153,7 @@ fn enhancement_function (omega:f64, q_par:f64, prm:&Parameters) -> f64 {
 
     let q_z = (omega.powi(2) / prm.c.powi(2) - q_par.powi(2)).sqrt();
 
-    if q_z <  PI / prm.l_c {
+    if q_z <  PI / prm.l_c || q_z > 3.0 * PI / prm.l_c {
         return 0.0;
     }
     // let jacobian = omega / prm.c.powi(2);
