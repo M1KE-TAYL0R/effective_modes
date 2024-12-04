@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num-complex = "0.4.4"
+num-complex = "0.4.6"
 plotters = "0.3.5"
 ndarray = "0.16.1"
-gnuplot = "0.0.43"
+gnuplot = "0.0.44"
 statrs = "*"
+ndarray-linalg = "*"
