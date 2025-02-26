@@ -9,15 +9,24 @@ fn main() {
     let mut prm = Parameters{
         l_c: 0.0,
         c: 1.0 / 137.0,
-        r: 0.99,
+        r: 0.95,
         w_0: 1.0,
-        n_w: 20000,
-        n_q: 10000,
+        n_w: 50000,
+        n_q: 1000,
         n_w_bins: 5000,
-        del_k: 2.0,
+        del_k: 1.0,
+        quality: 0.0,
         q_range: (0.0,100.0),
         w_range: (0.95, 1.05)
     };
+
+    let gamma = 4.0 * prm.w_0 * (1.0 - prm.r) / prm.r.sqrt();
+    prm.del_k = gamma / prm.c;
+    prm.quality = prm.w_0 / gamma;
+
+    println!("Quality Factor: {}", prm.quality);
+    println!("Delta q_perp: {}", prm.del_k);
+
 
     let q_0 = prm.w_0/prm.c;
     prm.l_c  = 2.0 * PI / q_0;
@@ -39,7 +48,7 @@ fn main() {
     let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion.clone());
     plot_weights(weights, &prm, &omegas).unwrap();
 
-    println!("test: {}", enhancement_function(1.0, 0.0, &prm));
+    // println!("test: {}", enhancement_function(1.0, 0.0, &prm));
 
     // plot_disp(dispersion, omegas, q_pars);
 }
@@ -89,33 +98,37 @@ fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f
         let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
         
         // let jacobian = 1.0; 
-        let mut jacobian =  (q_par * omega / prm.c / q_z).powf(-1.0);
+        let mut jacobian =  q_par * omega / prm.c / q_z; //.powf(-1.0);
+
         
-        if omega > prm.w_0 {
-            let qn_2 = (omega / prm.c).powf(2.0);
-            let qn_z_2 = (2.0 * PI / prm.l_c).powf(2.0);
+        let qn_2 = (omega / prm.c).powf(2.0);
+        let qn_z_2 = (2.0 * PI / prm.l_c).powf(2.0);
+        let qn_par = (qn_2 - qn_z_2).sqrt();
+        // let qn_par = q_par;
+        
+        if prm.del_k < qn_par {
 
-            let del_theta = prm.del_k / PI / (qn_2 - qn_z_2).sqrt();
-            let round_del_t = (2. * PI / del_theta).ceil();
+            let del_theta = 2.0 * (prm.del_k / qn_par).asin();
+            // let round_del_t = ( PI / del_theta).ceil();
 
-            jacobian *= 2. * PI / round_del_t;
+            // jacobian *= PI / round_del_t;=
 
             // if del_theta > 2. * PI {
             //     del_theta = 2. * PI;
             // }
-            // jacobian *= del_theta;
+            jacobian *= del_theta;
         }
         else {
-            jacobian *= 2. * PI;
+            jacobian *= PI;
         }
 
-        if (*val * jacobian).is_finite() {
-            *val = val.clone() * jacobian;
-        }
-        else {
-            // println!("Omega = {}, q_par = {}, q_z = {}",omega,q_par,q_z);
-            *val = 0.0;
-        }
+        // if (*val * jacobian).is_finite() {
+        *val = val.clone() * jacobian;
+        // }
+        // else {
+        //     println!("Omega = {}, q_par = {}, q_z = {}",omega,q_par,q_z);
+        //     *val = 0.0;
+        // }
     });
 
    let weight = bin.sum() * dq* dw;
@@ -206,6 +219,7 @@ pub struct Parameters {
     pub n_q: usize,
     pub n_w_bins: usize,
     pub del_k: f64,
+    pub quality: f64,
     pub q_range: (f64,f64),
     pub w_range: (f64,f64)
 }
