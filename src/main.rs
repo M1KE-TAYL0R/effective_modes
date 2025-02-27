@@ -11,18 +11,29 @@ fn main() {
         c: 1.0 / 137.0,
         r: 0.95,
         w_0: 1.0,
-        n_w: 50000,
+        n_w: 5000,
         n_q: 1000,
-        n_w_bins: 5000,
+        n_w_bins: 500,
         del_k: 1.0,
-        quality: 0.0,
+        quality: 5.0,
         q_range: (0.0,100.0),
         w_range: (0.95, 1.05)
     };
 
-    let gamma = 4.0 * prm.w_0 * (1.0 - prm.r) / prm.r.sqrt();
-    prm.del_k = gamma / prm.c;
-    prm.quality = prm.w_0 / gamma;
+    // let gamma = 4.0 * prm.w_0 * (1.0 - prm.r) / prm.r.sqrt();
+
+    if prm.quality == 0.0 {
+        let gamma = - prm.w_0 / (2.0 * PI) * prm.r.powi(4).ln() ;
+        prm.del_k = gamma / prm.c;
+        prm.quality = prm.w_0 / gamma;
+    }
+    else {
+        let gamma = prm.w_0 / prm.quality;
+        prm.del_k = gamma / prm.c;
+        prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
+        println!("Reflectance: {}", prm.r);
+    }
+
 
     println!("Quality Factor: {}", prm.quality);
     println!("Delta q_perp: {}", prm.del_k);
