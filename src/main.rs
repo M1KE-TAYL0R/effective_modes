@@ -1,70 +1,174 @@
 use std::f64::consts::PI;
-use ndarray::{Array1, Array2, s};
+use ndarray::{s, Array1, Array2};
 use gnuplot::*;
 use plotters::prelude::*;
 use statrs::statistics::Statistics;
 use ndarray_linalg::c64;
 
-fn main() {
-    let mut prm = Parameters{
-        l_c: 0.0,
-        c: 1.0 / 137.0,
-        r: 0.95,
-        w_0: 1.0,
-        n_w: 5000,
-        n_q: 1000,
-        n_w_bins: 500,
-        del_k: 1.0,
-        quality: 5.0,
-        q_range: (0.0,100.0),
-        w_range: (0.95, 1.05)
+
+fn define_parameters() -> Parameters {
+    let prm = Parameters{
+        l_c: 0.0,                // Placeholder
+        c: 1.0 / 137.0,          // Speed of light in atomic units
+        r: 0.0,                  // Placeholder if quality != 0
+        w_0: 1.0,                // Cavity resonance frequency in atomic units
+        n_w: 5000,               // Number of \omega grid points
+        n_q: 1000,               // Number of q_\| grid points per bin integration
+        n_w_bins: 500,           // Number of omega_n bins
+        del_k: 1.0,              // Value of \Delta q_\perp
+        quality: 500.0,          // Cavity Quality Factor
+        q_range: (0.0,100.0),    // Range of q_\| points integrated over
+        w_range: (0.95, 1.05)    // Range of omega_n
     };
 
-    // let gamma = 4.0 * prm.w_0 * (1.0 - prm.r) / prm.r.sqrt();
-
-    if prm.quality == 0.0 {
-        let gamma = - prm.w_0 / (2.0 * PI) * prm.r.powi(4).ln() ;
-        prm.del_k = gamma / prm.c;
-        prm.quality = prm.w_0 / gamma;
-    }
-    else {
-        let gamma = prm.w_0 / prm.quality;
-        prm.del_k = gamma / prm.c;
-        prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
-        println!("Reflectance: {}", prm.r);
-    }
+    prm
+}
 
 
-    println!("Quality Factor: {}", prm.quality);
-    println!("Delta q_perp: {}", prm.del_k);
+fn main() {
+    // Set Parameters
+    let mut prm = define_parameters();
+
+    // // Calculate prm.del_k and prm.r from prm.quality
+    // if prm.quality == 0.0 {
+    //     // Lorentzian linewidth approx
+    //     let gamma = - prm.w_0 / (2.0 * PI) * prm.r.powi(4).ln(); 
+
+    //     prm.del_k = gamma / prm.c;
+    //     prm.quality = prm.w_0 / gamma;
+    // }
+    // // Calculate prm.del_k and prm.quality from prm.r 
+    // else {
+    //     let gamma = prm.w_0 / prm.quality;
+    //     prm.del_k = gamma / prm.c;
+
+    //     // Lorentzian linewidth approx
+    //     prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
+    // }
+
+    // println!("Reflectance: {}", prm.r);
+    // println!("Quality Factor: {}", prm.quality);
+    // println!("Delta q_perp: {}", prm.del_k);
 
 
-    let q_0 = prm.w_0/prm.c;
-    prm.l_c  = 2.0 * PI / q_0;
+    // let q_0 = prm.w_0/prm.c;
+    // prm.l_c  = 2.0 * PI / q_0;
 
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
     let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
+    let qualities = vec![50.,100.,1000.,5000.];
 
-    disp.indexed_iter_mut().for_each(|(ind, val)| {
-        let q_par = q_pars[ind.0];
-        let omega = omegas[ind.1];
+    scan_quality_factors(qualities, prm, omegas, q_pars);
 
-        *val = enhancement_function(omega, q_par, &prm);
-    });
+    // let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
 
-    let dispersion = disp.t().to_owned();
+    // disp.indexed_iter_mut().for_each(|(ind, val)| {
+    //     let q_par = q_pars[ind.0];
+    //     let omega = omegas[ind.1];
 
-    let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion.clone());
-    plot_weights(weights, &prm, &omegas).unwrap();
+    //     *val = enhancement_function(omega, q_par, &prm);
+    // });
+
+    // let dispersion = disp.t().to_owned();
+
+    // let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion.clone());
+    // plot_weights(weights, &prm, &omegas).unwrap();
 
     // println!("test: {}", enhancement_function(1.0, 0.0, &prm));
 
     // plot_disp(dispersion, omegas, q_pars);
 }
 
-fn plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Result<(), Box<dyn std::error::Error>> {
+fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f64>, q_pars: Array1<f64>) {
+
+    let mut weights_quality:Vec<Array1<f64>> = Vec::new();
+
+    qualities.iter().for_each(|quality| {
+        prm.quality = *quality;
+
+        // Define r
+        let gamma = prm.w_0 / prm.quality;
+        prm.del_k = gamma / prm.c;
+
+        // Lorentzian linewidth approx
+        prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
+
+        let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
+
+        disp.indexed_iter_mut().for_each(|(ind, val)| {
+            let q_par = q_pars[ind.0];
+            let omega = omegas[ind.1];
+
+            *val = enhancement_function(omega, q_par, &prm);
+        });
+
+        let dispersion = disp.t().to_owned();
+
+        let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion);
+        let test = weights.to_vec();
+
+        weights_quality.push(weights);
+    });
+
+    plot_weights_quality(weights_quality, &prm, &omegas, qualities).unwrap();
+
+}
+
+fn plot_weights_quality(weights_quality:Vec<Array1<f64>>, prm:&Parameters, omegas:&Array1<f64>, qualities:Vec<f64>) ->  Result<(), Box<dyn std::error::Error>> {
+    
+    // Generate x-axis grid
+    let omegas = omegas.slice(s![..;prm.n_w / prm.n_w_bins]);
+
+    // Find maximum y-value
+    let max_q_ind = qualities.iter()
+        .enumerate()
+        .max_by(|(_, a), (_, b)| a.total_cmp(b))
+        .map(|(index, _)| index);
+    let test = weights_quality[max_q_ind.unwrap()].to_vec();
+    let max_y = *test.iter().max_by(|a,b| a.total_cmp(b)).unwrap();
+    // let max_y = weights_quality[max_q_ind.unwrap()].to_vec().max();
+
+    // let max_y = weights_quality[max_q_ind.unwrap()].clone().max();
+    
+    // let y: Vec<f64> = weights.to_vec();
+    // let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
+
+    let root = SVGBackend::new("weights.svg", (1440,1080)).into_drawing_area();
+        
+    root.fill(&WHITE)?;
+    let mut chart = ChartBuilder::on(&root)
+        .margin(20)
+        // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
+        .x_label_area_size(70)
+        .y_label_area_size(150)
+        .build_cartesian_2d(prm.w_range.0..prm.w_range.1, 0.0 .. max_y)?;
+
+    chart.configure_mesh()
+    .x_label_style(("helvetica", 50))
+    .y_label_style(("helvetica", 50))
+    .disable_mesh()
+    .set_all_tick_mark_size(20)
+    // .bold_line_style(original_style)
+    .x_label_formatter(&|v| format!("{0:.2}", v))
+    .y_label_formatter(&|v| format!("{:e}", v))
+    .draw()?;
+
+    qualities.iter().enumerate().for_each(|(ind, _qual)| {   
+        let x = omegas.to_vec();
+        let y: Vec<f64> = weights_quality[ind].to_vec();
+        let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
+
+        chart.draw_series(LineSeries::new((data.clone()).into_iter().map(|(x,y)| (x, y)), BLUE)).unwrap();
+    });
+    
+
+    // println!("{:?}",data);
+    
+    Ok(())
+}
+
+fn _plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Result<(), Box<dyn std::error::Error>> {
     let omegas = omegas.slice(s![..;prm.n_w / prm.n_w_bins]);
 
     let x = omegas.to_vec();
@@ -78,17 +182,17 @@ fn plot_weights(weights:Array1<f64>, prm:&Parameters, omegas:&Array1<f64>) -> Re
         .margin(20)
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70)
-        .y_label_area_size(100)
+        .y_label_area_size(150)
         .build_cartesian_2d(prm.w_range.0..prm.w_range.1, 0.0 .. weights.max())?;
 
     chart.configure_mesh()
     .x_label_style(("helvetica", 50))
     .y_label_style(("helvetica", 50))
-    // .disable_mesh()
+    .disable_mesh()
     .set_all_tick_mark_size(20)
     // .bold_line_style(original_style)
-    // .x_label_formatter(&|v| format!("{:.1}", v))
-    // .y_label_formatter(&|v| format!("{:.1}", v))
+    .x_label_formatter(&|v| format!("{0:.2}", v))
+    .y_label_formatter(&|v| format!("{:e}", v))
     .draw()?;
 
     chart.draw_series(LineSeries::new((data.clone()).into_iter().map(|(x,y)| (x, y)), BLUE))?;
