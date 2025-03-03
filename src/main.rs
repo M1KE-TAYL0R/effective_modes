@@ -13,12 +13,12 @@ fn define_parameters() -> Parameters {
         r: 0.0,                  // Placeholder if quality != 0
         w_0: 1.0,                // Cavity resonance frequency in atomic units
         n_w: 5000,               // Number of \omega grid points
-        n_q: 1000,               // Number of q_\| grid points per bin integration
+        n_q: 100000,               // Number of q_\| grid points per bin integration
         n_w_bins: 500,           // Number of omega_n bins
         del_k: 1.0,              // Value of \Delta q_\perp
         quality: 500.0,          // Cavity Quality Factor
         q_range: (0.0,100.0),    // Range of q_\| points integrated over
-        w_range: (0.95, 1.05)    // Range of omega_n
+        w_range: (0.85, 1.2)    // Range of omega_n
     };
 
     prm
@@ -51,13 +51,16 @@ fn main() {
     // println!("Delta q_perp: {}", prm.del_k);
 
 
-    // let q_0 = prm.w_0/prm.c;
-    // prm.l_c  = 2.0 * PI / q_0;
+    let q_0 = prm.w_0/prm.c;
+    prm.l_c  = 2.0 * PI / q_0;
 
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
     let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let qualities = vec![50.,100.,1000.,5000.];
+    let qualities = vec![50.,500.,50000.];
+
+    let _test1 = omegas.to_vec();
+    let _test2 = q_pars.to_vec();
 
     scan_quality_factors(qualities, prm, omegas, q_pars);
 
@@ -82,6 +85,8 @@ fn main() {
 
 fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f64>, q_pars: Array1<f64>) {
 
+    // let mut prms = prm.clone();
+
     let mut weights_quality:Vec<Array1<f64>> = Vec::new();
 
     qualities.iter().for_each(|quality| {
@@ -96,17 +101,26 @@ fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f6
 
         let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
 
+        let om = omegas.clone();
+        let qp = q_pars.clone();
+
         disp.indexed_iter_mut().for_each(|(ind, val)| {
-            let q_par = q_pars[ind.0];
-            let omega = omegas[ind.1];
+            let q_par = qp[ind.0];
+            let omega = om[ind.1];
+
+            // println!("{} {}", q_par,omega);
 
             *val = enhancement_function(omega, q_par, &prm);
+
+            if *val > 0.01 {
+                let _test = true;
+            }
         });
 
         let dispersion = disp.t().to_owned();
 
         let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion);
-        let test = weights.to_vec();
+        let _test = weights.to_vec();
 
         weights_quality.push(weights);
     });
@@ -142,7 +156,7 @@ fn plot_weights_quality(weights_quality:Vec<Array1<f64>>, prm:&Parameters, omega
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70)
         .y_label_area_size(150)
-        .build_cartesian_2d(prm.w_range.0..prm.w_range.1, 0.0 .. max_y)?;
+        .build_cartesian_2d(prm.w_range.0..prm.w_range.1, (0.01 .. max_y).log_scale())?;
 
     chart.configure_mesh()
     .x_label_style(("helvetica", 50))
@@ -259,12 +273,16 @@ fn bin_dispersion (prm:&Parameters, omegas:Array1<f64>, q_pars: Array1<f64>, dis
     for bin_ind in 0..prm.n_w_bins {
         let omegas_bin = omegas.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size)]);
         let bin = dispersion.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size),..]);
-
         // println!("{:?}", omegas_bin.shape());
 
         weights[bin_ind] = integrate_bin(bin.to_owned(), omegas_bin.to_owned(), &q_pars, prm);
     }
     
+    let _test = weights.to_vec();
+    let _test1 = omegas.to_vec();
+    let _test2 = q_pars.to_vec();
+    // let _test3 = weights.to_vec();
+
     weights
 }
 

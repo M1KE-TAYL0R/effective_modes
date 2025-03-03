@@ -41,5 +41,6 @@
             "args": [],
             "cwd": "${workspaceFolder}"
         }
-    ]
+    ],
+    "visualizerFile":"${workspaceFolder}/.vscode/custom.natvis"
 }
