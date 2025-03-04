@@ -2,3 +2,4 @@
 *.svg
 *.png
 *.DS_Store
+*.npy
