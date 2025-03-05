@@ -14,14 +14,14 @@ fn define_parameters() -> Parameters {
         c: 1.0 / 137.0,                   // Speed of light in atomic units
         r: 0.0,                           // Placeholder if quality != 0
         w_0: 0.1,                         // Cavity resonance frequency in atomic units
-        n_w: 10000,                        // Number of \omega grid points
-        n_q: 100000,                       // Number of q_\| grid points per bin integration
+        n_w: 10000,                       // Number of \omega grid points
+        n_q: 100000,                      // Number of q_\| grid points per bin integration
         n_w_bins: 5000,                   // Number of omega_n bins
         del_k: 1.0,                       // Value of \Delta q_\perp
         quality: 500.0,                   // Cavity Quality Factor
         q_range: (0.0,10.0),              // Range of q_\| points integrated over
         w_range: (0.09, 0.12),            // Range of omega_n
-        routine: "ManyQ".to_string()      // Set the routine: ManyQ, SingQ, Dispn
+        routine: "ARDOF".to_string()      // Set the routine: ManyQ, SingQ, Dispn, ARDOF
     };
 
     prm
@@ -37,8 +37,48 @@ fn main() {
         "ManyQ"  => many_q_factors(prm),
         "SingQ"  => single_q_factor(prm),
         "Dispn"  => plot_disp_wrapper(prm),
+        "ARDOF"  => ardof(prm),
         _        => panic!("Invalid Routine Parameter: check prm.routine")
     };
+}
+
+fn ardof(mut prm: Parameters) {
+    let q_0 = prm.w_0/prm.c;
+    prm.l_c  = 2.0 * PI / q_0;
+
+    let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
+    let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
+
+    let qualities = vec![5000.,500.,50.];
+
+    let mut ardofs:Vec<(f64, Array1<f64>)> = Vec::new();
+
+    qualities.iter().enumerate().for_each(|(ind, quality)| {
+
+        prm.quality = *quality;
+
+        println!("Calculating Q = {}", quality);
+
+        // Define r
+        let gamma = prm.w_0 / prm.quality;
+        prm.del_k = gamma / prm.c;
+
+        // Lorentzian linewidth approx
+        prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
+
+        let mut ardof: Array1<f64> = Array1::zeros([prm.n_w]);
+
+        omegas.iter().enumerate().for_each(|(ind1, omega)|  {
+
+            // let mut val = 0.0;
+            q_pars.iter().for_each(|q_par| {
+                ardof[ind1] += enhancement_function(*omega, *q_par, &prm)
+            });
+
+        });
+
+        ardofs[ind] = (*quality,ardof);
+    });
 }
 
 fn set_cavity_params(mut prm:Parameters) -> Parameters {
@@ -76,16 +116,7 @@ fn plot_disp_wrapper(mut prm:Parameters) {
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
     let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
-
-    disp.indexed_iter_mut().for_each(|(ind, val)| {
-        let q_par = q_pars[ind.0];
-        let omega = omegas[ind.1];
-
-        *val = enhancement_function(omega, q_par, &prm);
-    });
-
-    let dispersion = disp.t().to_owned();
+    let dispersion = calc_dispersion(&prm, &omegas, &q_pars);
 
     plot_disp(dispersion, omegas, q_pars);
 
@@ -98,10 +129,7 @@ fn many_q_factors(mut prm:Parameters) {
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
     let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let qualities = vec![5000.,500.,50.,10.];
-
-    let _test1 = omegas.to_vec();
-    let _test2 = q_pars.to_vec();
+    let qualities = vec![5000.,500.,50.];
 
     let (prm,output) = scan_quality_factors(qualities, prm, omegas, q_pars);
 
@@ -125,27 +153,14 @@ fn single_q_factor(mut prm:Parameters) {
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
     let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
-
-    disp.indexed_iter_mut().for_each(|(ind, val)| {
-        let q_par = q_pars[ind.0];
-        let omega = omegas[ind.1];
-
-        *val = enhancement_function(omega, q_par, &prm);
-    });
-
-    let dispersion = disp.t().to_owned();
+    let dispersion = calc_dispersion(&prm, &omegas, &q_pars);
 
     let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion.clone());
     plot_weights(weights, &prm, &omegas).unwrap();
 
-    // println!("test: {}", enhancement_function(1.0, 0.0, &prm));
-
 }
 
 fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f64>, q_pars: Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
-
-    // let mut prms = prm.clone();
 
     let mut weights_quality:Vec<Array1<f64>> = Vec::new();
 
@@ -167,29 +182,9 @@ fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f6
  
              // Lorentzian linewidth approx
              prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
+
+            let dispersion = calc_dispersion(&prm, &omegas, &q_pars);
  
-             let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
- 
-             let om = omegas.clone();
-             let qp = q_pars.clone();
- 
-             disp.indexed_iter_mut().for_each(|(ind, val)| {
-                 let q_par = qp[ind.0];
-                 let omega = om[ind.1];
- 
-                 // println!("{} {}", q_par,omega);
- 
-                 *val = enhancement_function(omega, q_par, &prm);
- 
-                 if *val > 0.01 {
-                     let _test = true;
-                 }
-             });
- 
-             let dispersion = disp.t().to_owned();
- 
-            //  let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion);
-            //  let _test = weights.to_vec();
             weights_quality.push(bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion));
         }
     });
@@ -198,6 +193,19 @@ fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f6
 
     (prm, qualities.into_iter().zip(weights_quality).collect())
 
+}
+
+fn calc_dispersion (prm:&Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>) -> Array2<f64>{
+    let mut disp: Array2<f64> = Array2::zeros((prm.n_q,prm.n_w));
+
+    disp.indexed_iter_mut().for_each(|(ind, val)| {
+        let q_par = q_pars[ind.0];
+        let omega = omegas[ind.1];
+
+        *val = enhancement_function(omega, q_par, &prm);
+    });
+
+    disp.t().to_owned()
 }
 
 fn plot_weights_quality(weights_quality:&Vec<Array1<f64>>, prm:&Parameters, omegas:&Array1<f64>, qualities:&Vec<f64>) ->  Result<(), Box<dyn std::error::Error>> {
@@ -257,7 +265,7 @@ fn plot_weights_quality(weights_quality:&Vec<Array1<f64>>, prm:&Parameters, omeg
             .legend( move |(x1, y1)| PathElement::new(vec![(x1 - 100 , y1), (x1 + 20, y1)], sty));
     });
     
-    chart.draw_series(DashedLineSeries::new(vec![(1.0,0.01) , (1.0, max_y)].into_iter(), 6, 10, ShapeStyle {color: BLACK.mix(1.0), filled: true, stroke_width: 2})).unwrap();
+    chart.draw_series(DashedLineSeries::new(vec![(1.0,min_y) , (1.0, max_y)].into_iter(), 6, 10, ShapeStyle {color: BLACK.mix(1.0), filled: true, stroke_width: 2})).unwrap();
 
     chart.configure_series_labels()
     .position(SeriesLabelPosition::UpperRight)
