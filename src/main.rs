@@ -16,7 +16,7 @@ fn define_parameters() -> Parameters {
         r: 0.0,                           // Placeholder if quality != 0
         w_0: 0.1,                         // Cavity resonance frequency in atomic units
         n_w: 1000,                       // Number of \omega grid points
-        n_q: 10000,                      // Number of q_\| grid points per bin integration
+        n_q: 100000,                      // Number of q_\| grid points per bin integration
         n_w_bins: 5000,                   // Number of omega_n bins
         del_k: 1.0,                       // Value of \Delta q_\perp
         quality: 500.0,                   // Cavity Quality Factor
@@ -82,12 +82,12 @@ fn ardof(mut prm: Parameters) {
 
                 let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
                 
-                let jacobian =  q_par * omega / prm.c / q_z;
+                let jacobian =  q_par * omega / prm.c / q_z * dq;
 
                 *temp1 = enhancement_function(*omega, q_par, &prm) * jacobian;
             });
             ardofs[ind].1[ind1] =  temp.iter().sum();
-            ardofs[ind].1[ind1] *= dq;
+            // ardofs[ind].1[ind1] *= dq;
 
         });
 
@@ -246,22 +246,32 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
         .min_by(|a,b| a.total_cmp(b))
         .unwrap();
 
-    let root = SVGBackend::new("ardofs.svg", (1440,1080)).into_drawing_area();
+    let scale: u32 = 10;
+    
+    let root = SVGBackend::new("ardofs.svg", (scale*1440,scale*1080)).into_drawing_area();
+
+    let original_style = ShapeStyle {
+        color: BLACK.into(),
+        filled: false,
+        stroke_width: 2*scale,
+    };
     
     root.fill(&WHITE)?;
     let mut chart = ChartBuilder::on(&root)
-        .margin(40)
+        .margin(40*scale)
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
-        .x_label_area_size(70)
-        .y_label_area_size(100)
-        .build_cartesian_2d((prm.w_range.0/prm.w_0)..(prm.w_range.1/prm.w_0), (min_y .. max_y).log_scale())?;
+        .x_label_area_size(70*scale)
+        .y_label_area_size(100*scale)
+        .build_cartesian_2d((prm.w_range.0/prm.w_0)..(prm.w_range.1/prm.w_0), (min_y .. max_y))?;
 
     chart.configure_mesh()
-        .x_label_style(("helvetica", 50))
-        .y_label_style(("helvetica", 50))
+        .x_label_style(("helvetica", 50*scale))
+        .y_label_style(("helvetica", 50*scale))
         .disable_mesh()
-        .set_all_tick_mark_size(20)
+        .set_all_tick_mark_size(20*scale)
         // .bold_line_style(original_style)
+        // .light_line_style(original_style)
+        .axis_style(original_style)
         .x_label_formatter(&|v| format!("{0:.2}", v))
         .y_label_formatter(&|v| format!("{:e}", v))
         .draw()?;
@@ -273,20 +283,25 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
         let y: Vec<f64> = ardof.to_vec();
         let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
 
-        let sty = col[ind].stroke_width(4);
+        let sty = col[ind].stroke_width(4*scale);
 
         chart.draw_series(LineSeries::new((data.clone()).into_iter(), sty)).unwrap()
             .label(format!("Quality Factor: {}", qual))
-            .legend( move |(x1, y1)| PathElement::new(vec![(x1 - 100 , y1), (x1 + 20, y1)], sty));
+            .legend( move |(x1, y1)| PathElement::new(vec![(x1 - 100*(scale as i32) , y1), (x1 - 20 * scale as i32, y1)], sty));
     });
     
-    chart.draw_series(DashedLineSeries::new(vec![(1.0,min_y) , (1.0, max_y)].into_iter(), 6, 10, ShapeStyle {color: BLACK.mix(1.0), filled: true, stroke_width: 2}))?;
+    chart.draw_series(DashedLineSeries::new(vec![(1.0,min_y) , (1.0, max_y)].into_iter(), 
+        6*scale, 
+        10*scale, 
+        ShapeStyle {color: BLACK.mix(1.0), 
+        filled: true, stroke_width: 2*scale}))?;
 
     chart.configure_series_labels()
-        .position(SeriesLabelPosition::UpperRight)
-        .label_font(("helvetica", 50))
+        .position(SeriesLabelPosition::Coordinate(850 * scale as i32, 700 * scale as i32))
+        .margin(10 * scale)
+        .label_font(("helvetica", 50*scale))
         .border_style(&WHITE.mix(0.0))
-        .background_style(&WHITE.mix(0.8))
+        .background_style(&WHITE.mix(0.0))
         .draw()?;
     
     Ok(())
@@ -431,7 +446,7 @@ fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f
         }
 
         // if (*val * jacobian).is_finite() {
-        *val = val.clone() * jacobian;
+        *val *= jacobian;
         // }
         // else {
         //     println!("Omega = {}, q_par = {}, q_z = {}",omega,q_par,q_z);
@@ -439,7 +454,7 @@ fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f
         // }
     });
 
-   let weight = bin.sum() * dq* dw;
+   let weight = bin.sum() * dq * dw;
 
    weight
 }
