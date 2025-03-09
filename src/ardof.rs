@@ -11,7 +11,7 @@ pub fn ardof(mut prm: Parameters) {
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
     let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
-    let qualities = vec![5000.,200.,100.,50.];
+    let qualities = vec![5000.,500.,50.];
 
     let mut ardofs:Vec<(f64, Array1<f64>)> = Vec::new();
 
@@ -87,22 +87,22 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
     let original_style = ShapeStyle {
         color: BLACK.into(),
         filled: false,
-        stroke_width: 2*scale,
+        stroke_width: 4*scale,
     };
     
     root.fill(&WHITE)?;
     let mut chart = ChartBuilder::on(&root)
-        .margin(40*scale)
+        .margin(70*scale)
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
         .build_cartesian_2d((prm.w_range.0/prm.w_0)..(prm.w_range.1/prm.w_0), (min_y .. max_y).log_scale())?;
 
     chart.configure_mesh()
-        .x_label_style(("helvetica", 50*scale))
-        .y_label_style(("helvetica", 50*scale))
+        .x_label_style(("helvetica", 70*scale))
+        .y_label_style(("helvetica", 70*scale))
         .disable_mesh()
-        .set_all_tick_mark_size(20*scale)
+        .set_all_tick_mark_size(30*scale)
         // .bold_line_style(original_style)
         // .light_line_style(original_style)
         .axis_style(original_style)
@@ -117,7 +117,7 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
         let y: Vec<f64> = ardof.to_vec();
         let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
 
-        let sty = col[ind].stroke_width(4*scale);
+        let sty = col[ind].stroke_width(8*scale);
 
         chart.draw_series(LineSeries::new((data.clone()).into_iter(), sty)).unwrap()
             .label(format!("Quality Factor: {}", qual))
@@ -131,9 +131,9 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
         filled: true, stroke_width: 2*scale}))?;
 
     chart.configure_series_labels()
-        .position(SeriesLabelPosition::Coordinate(850 * scale as i32, 700 * scale as i32))
+        .position(SeriesLabelPosition::Coordinate(650 * scale as i32, 575 * scale as i32))
         .margin(10 * scale)
-        .label_font(("helvetica", 50*scale))
+        .label_font(("helvetica", 70*scale))
         .border_style(&WHITE.mix(0.0))
         .background_style(&WHITE.mix(0.0))
         .draw()?;
