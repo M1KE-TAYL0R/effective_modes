@@ -7,14 +7,14 @@ pub fn set_cavity_params(mut prm:Parameters) -> Parameters {
     // Calculate prm.del_k and prm.r from prm.quality
     if prm.quality == 0.0 {
         // Lorentzian linewidth approx
-        let gamma = - prm.w_0 / (2.0 * PI) * prm.r.powi(4).ln(); 
+        let gamma = - prm.w_c / (2.0 * PI) * prm.r.powi(4).ln(); 
 
         prm.del_k = gamma / prm.c;
-        prm.quality = prm.w_0 / gamma;
+        prm.quality = prm.w_c / gamma;
     }
     // Calculate prm.del_k and prm.quality from prm.r 
     else {
-        let gamma = prm.w_0 / prm.quality;
+        let gamma = prm.w_c / prm.quality;
         prm.del_k = gamma / prm.c;
 
         // Lorentzian linewidth approx
@@ -25,7 +25,7 @@ pub fn set_cavity_params(mut prm:Parameters) -> Parameters {
     println!("Quality Factor: {}", prm.quality);
     println!("Delta q_perp: {}", prm.del_k);
 
-    let q_0 = prm.w_0/prm.c;
+    let q_0 = prm.w_c/prm.c;
     prm.l_c  = 2.0 * PI / q_0;
 
     prm

@@ -8,7 +8,7 @@ use statrs::statistics::Statistics;
 
 
 pub fn many_q_factors(mut prm:Parameters) {
-    let q_0 = prm.w_0/prm.c;
+    let q_0 = prm.w_c/prm.c;
     prm.l_c  = 2.0 * PI / q_0;
 
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
@@ -16,7 +16,7 @@ pub fn many_q_factors(mut prm:Parameters) {
 
     let qualities = vec![5000.,500.,50.];
 
-    let (prm,output) = scan_quality_factors(qualities, prm, omegas, q_pars);
+    let (prm,output) = scan_quality_factors(qualities, prm, &omegas, q_pars);
 
     save_output(&prm,output);
 }
@@ -24,7 +24,7 @@ pub fn many_q_factors(mut prm:Parameters) {
 fn save_output (prm: &Parameters, output: Vec<(f64,Array1<f64>)>) {
 
     output.iter().for_each(|(qual,weight)| {
-        let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_0, prm.n_q, qual);
+        let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, qual);
         println!("Saving: '{}'", fname);
 
         write_npy(fname, weight).unwrap();
@@ -45,7 +45,7 @@ pub fn single_q_factor(mut prm:Parameters) {
 
 }
 
-fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f64>, q_pars: Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
+pub fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:&Array1<f64>, q_pars: Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
 
     let mut weights_quality:Vec<Array1<f64>> = Vec::new();
 
@@ -54,7 +54,7 @@ fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f6
 
         println!("Calculating Q = {}", quality);
 
-        let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_0, prm.n_q, prm.quality);
+        let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
 
         if Path::new(fname.as_str()).is_file() {
             let weights: Array1<f64> = read_npy(fname).unwrap();
@@ -62,7 +62,7 @@ fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:Array1<f6
         }
         else {
              // Define r
-             let gamma = prm.w_0 / prm.quality;
+             let gamma = prm.w_c / prm.quality;
              prm.del_k = gamma / prm.c;
  
              // Lorentzian linewidth approx
@@ -119,7 +119,7 @@ fn plot_weights_quality(weights_quality:&Vec<Array1<f64>>, prm:&Parameters, omeg
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
-        .build_cartesian_2d((prm.w_range.0/prm.w_0)..(prm.w_range.1/prm.w_0), (min_y .. max_y).log_scale())?;
+        .build_cartesian_2d((prm.w_range.0/prm.w_c)..(prm.w_range.1/prm.w_c), (min_y .. max_y).log_scale())?;
 
     chart.configure_mesh()
         .x_label_style(("helvetica", 70*scale))
@@ -134,7 +134,7 @@ fn plot_weights_quality(weights_quality:&Vec<Array1<f64>>, prm:&Parameters, omeg
     let col = vec![LIGHTBLUE_A700,LIME_A700,DEEPORANGE_A400,BLACK];
 
     qualities.iter().enumerate().for_each(|(ind, qual)| {   
-        let x: Vec<f64> = (omegas.to_owned() / prm.w_0).to_vec();
+        let x: Vec<f64> = (omegas.to_owned() / prm.w_c).to_vec();
         let y: Vec<f64> = weights_quality[ind].to_vec();
         let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
 

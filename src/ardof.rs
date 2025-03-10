@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use plotters::{prelude::*, style::{full_palette::{DEEPORANGE_A400, LIGHTBLUE_A700, LIME_A700}, Color}};
 
 pub fn ardof(mut prm: Parameters) {
-    let q_0 = prm.w_0/prm.c;
+    let q_0 = prm.w_c/prm.c;
     prm.l_c  = 2.0 * PI / q_0;
 
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
@@ -26,7 +26,7 @@ pub fn ardof(mut prm: Parameters) {
         println!("Calculating Q = {}", quality);
 
         // Define r
-        let gamma = prm.w_0 / prm.quality;
+        let gamma = prm.w_c / prm.quality;
         prm.del_k = gamma / prm.c;
 
         // Lorentzian linewidth approx
@@ -96,7 +96,7 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
-        .build_cartesian_2d((prm.w_range.0/prm.w_0)..(prm.w_range.1/prm.w_0), (min_y .. max_y).log_scale())?;
+        .build_cartesian_2d((prm.w_range.0/prm.w_c)..(prm.w_range.1/prm.w_c), (min_y .. max_y).log_scale())?;
 
     chart.configure_mesh()
         .x_label_style(("helvetica", 70*scale))
@@ -113,7 +113,7 @@ fn plot_ardofs_quality(ardofs:&Vec<(f64,Array1<f64>)>, prm: &Parameters, omegas:
     let col = vec![LIGHTBLUE_A700,LIME_A700,DEEPORANGE_A400,BLACK];
 
     ardofs.iter().enumerate().for_each(|(ind, (qual, ardof))| {   
-        let x: Vec<f64> = (omegas.to_owned() / prm.w_0).to_vec();
+        let x: Vec<f64> = (omegas.to_owned() / prm.w_c).to_vec();
         let y: Vec<f64> = ardof.to_vec();
         let data: Vec<(f64,f64)> = x.into_iter().zip(y).collect();
 
