@@ -2,6 +2,9 @@ use std::f64::consts::PI;
 use crate::parameters::Parameters;
 use ndarray_linalg::c64;
 use ndarray::{s, Array1, Array2};
+use ndarray_npy::read_npy;
+use std::path::Path;
+use rayon::prelude::*;
 
 pub fn set_cavity_params(mut prm:Parameters) -> Parameters {
     // Calculate prm.del_k and prm.r from prm.quality
@@ -86,7 +89,7 @@ fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f
    weight
 }
 
-pub fn bin_dispersion (prm:&Parameters, omegas:Array1<f64>, q_pars: Array1<f64>, dispersion:Array2<f64>) -> Array1<f64>{
+pub fn bin_dispersion (prm:&Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>, dispersion:&Array2<f64>) -> Array1<f64>{
     
     let bin_size = prm.n_w / prm.n_w_bins;
     let mut weights: Array1<f64> = Array1::zeros( prm.n_w_bins);
@@ -112,4 +115,63 @@ pub fn calc_dispersion (prm:&Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
     });
 
     disp.t().to_owned()
+}
+
+pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>) -> Array1<f64>{
+    // println!("Calculating Q = {}", prm.quality);
+
+    let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
+
+    if Path::new(fname.as_str()).is_file() {
+        let weights: Array1<f64> = read_npy(fname).unwrap();
+        return weights
+    }
+    else {
+        let dq = (prm.q_range.1 - prm.q_range.0) / (prm.n_q as f64);
+        let dw = (prm.w_range.1 - prm.w_range.0) / (prm.n_w as f64);
+
+        let bin_size = prm.n_w / prm.n_w_bins;
+        let bins: Array1<f64> = Array1::zeros(prm.n_w_bins);
+
+        let weights = bins.iter().enumerate().map(|(bin_ind,_)| {
+
+            let mut weight: f64 = 0.0;
+            
+            let omegas_bin = omegas.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size)]);
+
+            omegas_bin.iter().for_each(| omega|  {
+
+                let mut integrands: Vec<f64> = Array1::zeros(prm.n_q).to_vec();
+
+                q_pars.to_vec().into_par_iter().zip(integrands.par_iter_mut()).for_each(|(q_par,integrand)| {
+    
+                    let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
+                    
+                    let mut jacobian =  q_par * omega / prm.c / q_z;
+    
+                    let qn_2 = (omega / prm.c).powf(2.0);
+                    let qn_z_2 = (2.0 * PI / prm.l_c).powf(2.0);
+                    let qn_par = (qn_2 - qn_z_2).sqrt();
+                    
+                    if prm.del_k < qn_par {
+    
+                        let del_theta = 2.0 * (prm.del_k / qn_par).asin();
+    
+                        jacobian *= del_theta;
+                    }
+                    else {
+                        jacobian *= PI;
+                    }
+    
+                    *integrand = enhancement_function(*omega, q_par, &prm) * jacobian;
+                });
+                weight +=  integrands.iter().sum::<f64>();
+            });
+
+            weight
+        }).collect::<Array1<f64>>();
+
+        weights * dq * dw
+
+    }
 }

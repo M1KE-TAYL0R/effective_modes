@@ -1,4 +1,4 @@
-use crate::{parameters::Parameters, backend::{set_cavity_params,calc_dispersion,bin_dispersion}};
+use crate::{parameters::Parameters, backend::{set_cavity_params,calc_dispersion,bin_dispersion,par_weights_gen}};
 use std::f64::consts::PI;
 use ndarray::{Array1,s};
 use ndarray_npy::{write_npy,read_npy};
@@ -16,7 +16,7 @@ pub fn many_q_factors(mut prm:Parameters) {
 
     let qualities = vec![5000.,500.,50.];
 
-    let (prm,output) = scan_quality_factors(qualities, prm, &omegas, q_pars);
+    let (prm,output) = scan_quality_factors(&qualities, prm, &omegas, &q_pars);
 
     save_output(&prm,output);
 }
@@ -40,45 +40,70 @@ pub fn single_q_factor(mut prm:Parameters) {
 
     let dispersion = calc_dispersion(&prm, &omegas, &q_pars);
 
-    let weights = bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion.clone());
+    let weights = bin_dispersion(&prm, &omegas, &q_pars, &dispersion);
     plot_weights(weights, &prm, &omegas).unwrap();
 
 }
 
-pub fn scan_quality_factors(qualities:Vec<f64>, mut prm:Parameters, omegas:&Array1<f64>, q_pars: Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
+pub fn scan_quality_factors(qualities:&Vec<f64>, mut prm:Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
 
     let mut weights_quality:Vec<Array1<f64>> = Vec::new();
 
     qualities.iter().for_each(|quality| {
         prm.quality = *quality;
 
-        println!("Calculating Q = {}", quality);
+        prm = set_cavity_params(prm.clone());
 
-        let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
+        // weights_quality.push(weights_gen(&prm, omegas, q_pars));
 
-        if Path::new(fname.as_str()).is_file() {
-            let weights: Array1<f64> = read_npy(fname).unwrap();
-            weights_quality.push(weights);
-        }
-        else {
-             // Define r
-             let gamma = prm.w_c / prm.quality;
-             prm.del_k = gamma / prm.c;
+        weights_quality.push(par_weights_gen(&prm, omegas, q_pars));
+
+        // println!("Calculating Q = {}", quality);
+
+        // let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
+
+        // if Path::new(fname.as_str()).is_file() {
+        //     let weights: Array1<f64> = read_npy(fname).unwrap();
+        //     weights_quality.push(weights);
+        // }
+        // else {
+        //      // Define r
+        //      let gamma = prm.w_c / prm.quality;
+        //      prm.del_k = gamma / prm.c;
  
-             // Lorentzian linewidth approx
-             prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
+        //      // Lorentzian linewidth approx
+        //      prm.r = (- 2.0 * PI / prm.quality).exp().powf(0.25);
 
-            let dispersion = calc_dispersion(&prm, &omegas, &q_pars);
+        //     let dispersion = calc_dispersion(&prm, &omegas, &q_pars);
  
-            weights_quality.push(bin_dispersion(&prm, omegas.clone(), q_pars.clone(), dispersion));
-        }
+        //     weights_quality.push(bin_dispersion(&prm, &omegas, &q_pars, &dispersion));
+        // }
     });
 
     plot_weights_quality(&weights_quality, &prm, &omegas, &qualities).unwrap();
 
-    (prm, qualities.into_iter().zip(weights_quality).collect())
+    (prm, qualities.clone().into_iter().zip(weights_quality).collect())
 
 }
+
+pub fn _weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>) -> Array1<f64>{
+    println!("Calculating Q = {}", prm.quality);
+
+    let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
+
+    if Path::new(fname.as_str()).is_file() {
+        let weights: Array1<f64> = read_npy(fname).unwrap();
+        return weights
+    }
+    else {
+
+        let dispersion = calc_dispersion(&prm, omegas, q_pars);
+
+        return bin_dispersion(&prm, omegas,&q_pars, &dispersion);
+    }
+}
+
+
 
 fn plot_weights_quality(weights_quality:&Vec<Array1<f64>>, prm:&Parameters, omegas:&Array1<f64>, qualities:&Vec<f64>) ->  Result<(), Box<dyn std::error::Error>> {
     
@@ -96,6 +121,8 @@ fn plot_weights_quality(weights_quality:&Vec<Array1<f64>>, prm:&Parameters, omeg
         .iter()
         .max_by(|a,b| a.total_cmp(b))
         .unwrap();
+
+    println!("Max ell_n = {}", {max_y});
 
     let min_y = *weights_quality[max_q_ind.unwrap()]
         .to_vec()

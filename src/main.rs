@@ -13,7 +13,7 @@ mod vsc_rate;
 use vsc_rate::vsc_rate;
 
 mod parameters;
-use parameters::Parameters;
+use parameters::{Parameters, VscParameters,Units};
 
 fn define_parameters() -> Parameters {
     let prm = Parameters{
@@ -30,12 +30,25 @@ fn define_parameters() -> Parameters {
         // w_range: (0.099, 0.108),            // Range of omega_n
         q_range: (0.0,10.0),              // Range of q_\| points integrated over
         w_range: (0.09, 0.12),            // Range of omega_n
-        routine: "ARDOF".to_string(),      // Set the routine: ManyQ, SingQ, Dispn, ARDOF
-        coupling: None,
-        w_0: None
+        routine: "VSC_k".to_string(),      // Set the routine: ManyQ, SingQ, Dispn, ARDOF, VSC_k
+        // coupling: None,
+        // w_0: None
     };
 
     prm
+}
+
+fn define_vsc_parameters() -> VscParameters {
+    let vsc_prm = VscParameters{
+        coupling: 0.0,
+        w_0: 0.0,
+        k_0: 5.946954192406803128e-08, // From Wenxiang HEOM
+        beta: 200.0,
+        unit: Units::CM,
+        // k_vsc: Vec::new()
+    };
+
+    vsc_prm
 }
 
 
@@ -49,7 +62,7 @@ fn main() {
         "SingQ"  => single_q_factor(prm),
         "Dispn"  => plot_disp_wrapper(prm),
         "ARDOF"  => ardof(prm),
-        "VSC_k"  => vsc_rate(prm),
+        "VSC_k"  => vsc_rate(prm,define_vsc_parameters()),
         _        => panic!("Invalid Routine Parameter: check prm.routine")
     };
 }
