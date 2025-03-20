@@ -20,7 +20,8 @@ fn define_parameters() -> Parameters {
         l_c: 0.0,                         // Placeholder
         c: 1.0 / 137.0,                   // Speed of light in atomic units
         r: 0.0,                           // Placeholder if quality != 0
-        w_c: 0.1,                         // Cavity resonance frequency in atomic units
+        // w_c: 0.1,                         // Cavity resonance frequency in atomic units
+        w_c: 1200. / 219474.63,
         n_w: 2000,                       // Number of \omega grid points
         n_q: 2000,                      // Number of q_\| grid points per bin integration
         n_w_bins: 2000,                   // Number of omega_n bins
@@ -28,9 +29,11 @@ fn define_parameters() -> Parameters {
         // n_q: 100000,                      // Number of q_\| grid points per bin integration
         // n_w_bins: 5000,                   // Number of omega_n bins
         del_k: 0.0,                       // Placeholder
-        quality: 5000.0,                   // Cavity Quality Factor
-        q_range: (-5.0,5.0),              // Range of q_\| points integrated over
-        w_range: (0.099, 0.108),            // Range of omega_n
+        quality: 50.0,                   // Cavity Quality Factor
+        q_range: (-0.5,0.5),              // Range of q_\| points integrated over
+        w_range: (1100. / 219474.63, 1500. / 219474.63),            // Range of omega_n
+        // q_range: (-5.0,5.0),              // Range of q_\| points integrated over
+        // w_range: (0.099, 0.108),            // Range of omega_n
         // q_range: (0.0,10.0),              // Range of q_\| points integrated over
         // w_range: (0.09, 0.12),            // Range of omega_n
         routine: "Dispn".to_string(),      // Set the routine: ManyQ, SingQ, Dispn, ARDOF, VSC_k
