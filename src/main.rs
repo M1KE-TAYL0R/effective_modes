@@ -21,16 +21,19 @@ fn define_parameters() -> Parameters {
         c: 1.0 / 137.0,                   // Speed of light in atomic units
         r: 0.0,                           // Placeholder if quality != 0
         w_c: 0.1,                         // Cavity resonance frequency in atomic units
-        n_w: 10000,                       // Number of \omega grid points
-        n_q: 100000,                      // Number of q_\| grid points per bin integration
-        n_w_bins: 5000,                   // Number of omega_n bins
+        n_w: 2000,                       // Number of \omega grid points
+        n_q: 2000,                      // Number of q_\| grid points per bin integration
+        n_w_bins: 2000,                   // Number of omega_n bins
+        // n_w: 10000,                       // Number of \omega grid points
+        // n_q: 100000,                      // Number of q_\| grid points per bin integration
+        // n_w_bins: 5000,                   // Number of omega_n bins
         del_k: 0.0,                       // Placeholder
-        quality: 50.0,                   // Cavity Quality Factor
-        // q_range: (-5.0,5.0),              // Range of q_\| points integrated over
-        // w_range: (0.099, 0.108),            // Range of omega_n
-        q_range: (0.0,10.0),              // Range of q_\| points integrated over
-        w_range: (0.09, 0.12),            // Range of omega_n
-        routine: "VSC_k".to_string(),      // Set the routine: ManyQ, SingQ, Dispn, ARDOF, VSC_k
+        quality: 5000.0,                   // Cavity Quality Factor
+        q_range: (-5.0,5.0),              // Range of q_\| points integrated over
+        w_range: (0.099, 0.108),            // Range of omega_n
+        // q_range: (0.0,10.0),              // Range of q_\| points integrated over
+        // w_range: (0.09, 0.12),            // Range of omega_n
+        routine: "Dispn".to_string(),      // Set the routine: ManyQ, SingQ, Dispn, ARDOF, VSC_k
         // coupling: None,
         // w_0: None
     };
