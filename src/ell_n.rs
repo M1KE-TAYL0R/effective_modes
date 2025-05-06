@@ -8,6 +8,9 @@ use statrs::statistics::Statistics;
 
 
 pub fn many_q_factors(mut prm:Parameters) {
+
+    prm.w_range = (prm.w_c * 0.9, prm.w_c * 1.4);
+
     let q_0 = prm.w_c/prm.c;
     prm.l_c  = 2.0 * PI / q_0;
 
@@ -24,7 +27,7 @@ pub fn many_q_factors(mut prm:Parameters) {
 fn save_output (prm: &Parameters, output: Vec<(f64,Array1<f64>)>) {
 
     output.iter().for_each(|(qual,weight)| {
-        let fname = format!("ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, qual);
+        let fname = format!("data/ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, qual);
         println!("Saving: '{}'", fname);
 
         write_npy(fname, weight).unwrap();
