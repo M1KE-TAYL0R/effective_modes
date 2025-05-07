@@ -15,11 +15,10 @@ pub fn many_q_factors(mut prm:Parameters) {
     prm.l_c  = 2.0 * PI / q_0;
 
     let omegas = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);
-    let q_pars = Array1::linspace(prm.q_range.0, prm.q_range.1, prm.n_q);
 
     let qualities = vec![5000.,500.,50.];
 
-    let (prm,output) = scan_quality_factors(&qualities, prm, &omegas, &q_pars);
+    let (prm,output) = scan_quality_factors(&qualities, prm, &omegas);
 
     save_output(&prm,output);
 }
@@ -48,7 +47,7 @@ pub fn single_q_factor(mut prm:Parameters) {
 
 }
 
-pub fn scan_quality_factors(qualities:&Vec<f64>, mut prm:Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
+pub fn scan_quality_factors(qualities:&Vec<f64>, mut prm:Parameters, omegas:&Array1<f64>) -> (Parameters, Vec<(f64,Array1<f64>)>){
 
     let mut weights_quality:Vec<Array1<f64>> = Vec::new();
 
@@ -59,7 +58,7 @@ pub fn scan_quality_factors(qualities:&Vec<f64>, mut prm:Parameters, omegas:&Arr
 
         // weights_quality.push(weights_gen(&prm, omegas, q_pars));
 
-        weights_quality.push(par_weights_gen(&prm, omegas, q_pars));
+        weights_quality.push(par_weights_gen(&prm, omegas));
 
         // println!("Calculating Q = {}", quality);
 

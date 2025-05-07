@@ -49,7 +49,7 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
 
                 let w_scan = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);          
 
-                let ell_n = par_weights_gen(&prm, &w_scan, &q_pars);
+                let ell_n = par_weights_gen(&prm, &w_scan);
 
                 let _temp = q_pars.to_vec();
                 let _temp2 = ell_n.to_vec();
@@ -114,7 +114,7 @@ fn plot_k_vsc(k_vsc_qual_coup: &HashMap<(usize,usize), Array1<f64>> , omegas_cm:
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
-        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), 1.0 .. max_y.1)?;
+        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), (0.01 .. max_y.1).log_scale())?;
 
     chart.configure_mesh()
         .x_label_style(("helvetica", 20*scale))

@@ -118,9 +118,9 @@ pub fn calc_dispersion (prm:&Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
     disp.t().to_owned()
 }
 
-pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f64>) -> Array1<f64>{
+pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
     // println!("Calculating Q = {}", prm.quality);
-    let mut q_pars = q_pars.clone();
+    // let mut q_pars = q_pars.clone();
     let num_std = 5.0;
     let read_files = true;
 
@@ -134,20 +134,22 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
     }
     else {
         // std::env::set_var("RAYON_NUM_THREADS", "96");
-        let mut dq = (prm.q_range.1 - prm.q_range.0) / (prm.n_q as f64);
+        // let mut dq = (prm.q_range.1 - prm.q_range.0) / (prm.n_q as f64);
         let dw = (prm.w_range.1 - prm.w_range.0) / (prm.n_w as f64);
 
         let bin_size = prm.n_w / prm.n_w_bins;
         let bins: Array1<f64> = Array1::zeros(prm.n_w_bins);
 
-        let weights = bins.iter().enumerate().map(|(bin_ind,_)| {
+        let weights = bins.to_vec().into_par_iter().enumerate().map(|(bin_ind,_)| {
 
             let mut weight: f64 = 0.0;
+            let mut dq = 0.0;
             
             let omegas_bin = omegas.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size)]);
 
             omegas_bin.iter().for_each(| omega|  {
 
+                let q_pars: Array1<f64>;
                 let mut integrands: Vec<f64> = Array1::zeros(prm.n_q).to_vec();
 
                 // Define range of q_pars:
@@ -176,7 +178,7 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
                     q_pars = Array1::linspace(0.0, 0.5, prm.n_q);
                 }
 
-                q_pars.to_vec().into_par_iter().zip(integrands.par_iter_mut()).for_each(|(q_par,integrand)| {
+                q_pars.to_vec().iter().zip(integrands.iter_mut()).for_each(|(q_par,integrand)| {
     
                     let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
                     
@@ -196,7 +198,7 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
                     else {
                         jacobian *= PI;
                     }
-                    let temp = enhancement_function(*omega, q_par, &prm) * jacobian;
+                    let temp = enhancement_function(*omega, *q_par, &prm) * jacobian;
                     *integrand = temp;
                 });
                 let _temp = integrands.to_vec();
@@ -205,9 +207,9 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
             });
 
             weight
-        }).collect::<Array1<f64>>();
+        }).collect::<Vec<f64>>();
 
-        let _temp = weights.to_vec();
+        let weights = Array1::from_vec(weights);
 
         let out = weights  * dw;
 
