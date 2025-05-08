@@ -122,11 +122,11 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
     // println!("Calculating Q = {}", prm.quality);
     // let mut q_pars = q_pars.clone();
     let num_std = 5.0;
-    let read_files = true;
+    // let read_files = true;
 
     let fname = format!("data2/ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
 
-    if Path::new(fname.as_str()).is_file() && read_files{
+    if Path::new(fname.as_str()).is_file(){
         // println!("Reading: '{}'", fname);
 
         let weights: Array1<f64> = read_npy(fname).unwrap();

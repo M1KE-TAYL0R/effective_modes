@@ -114,7 +114,7 @@ fn plot_k_vsc(k_vsc_qual_coup: &HashMap<(usize,usize), Array1<f64>> , omegas_cm:
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
-        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), (0.01 .. max_y.1).log_scale())?;
+        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), (1e-8 .. max_y.1).log_scale())?;
 
     chart.configure_mesh()
         .x_label_style(("helvetica", 20*scale))
@@ -172,8 +172,8 @@ fn calc_k(omegas:&Array1<f64>, vsc_prm: &VscParameters, ell_n: &Array1<f64>, prm
 
     // println!("k = {}",k);
 
-    // k * 4.0 * vsc_prm.coupling.powi(2) * dw / vsc_prm.k_0
-    1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
+    k * 4.0 * vsc_prm.coupling.powi(2)* dw
+    // 1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
 }
 
 fn calc_t_c(prm:&Parameters) -> f64 {
@@ -188,6 +188,10 @@ fn lorentzian(omega:&f64, w_0: &f64, t_c:f64) -> f64 {
     let denominator = (omega*omega - w_0*w_0).powi(2) + (w_0/t_c).powi(2);
 
     numerator/denominator
+}
+
+fn _calc_k_0() {
+    
 }
 
 fn bose_einstein_dist(beta:&f64, w_0: &f64) -> f64{
