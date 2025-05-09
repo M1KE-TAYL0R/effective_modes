@@ -7,6 +7,7 @@ use indicatif::{ProgressIterator, ProgressStyle};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use ndarray::Array1;
+use ndarray_linalg::c64;
 
 
 pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
@@ -16,7 +17,7 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
     // let qualities = vec![500.,200.,50.];
     // let couplings = vec![3.125e-4, 6.25e-4, 9.375e-4, 1.25e-3];
 
-    let qualities = vec![500.,200., 50.];
+    let qualities = vec![5000., 500.,200., 50.];
     let couplings = vec![1.25e-3];
 
     vsc_prm.to_au();
@@ -28,6 +29,16 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
     // let mut k_vsc_qual_coup: Vec<(f64,f64,Array1<f64>)> = Vec::new();
     let mut k_vsc_qual_coup: HashMap<(usize,usize), Array1<f64>> = HashMap::new();
 
+    let test_k_0 = true;
+    if test_k_0 {
+        prm.quality = 100.0;
+        vsc_prm.coupling = 1.25e-3;
+        prm = set_cavity_params(prm.clone());
+
+        vsc_prm.k_0 = calc_k_0(&omegas, &vsc_prm, &prm, 100.0);
+        println!("Vsc k_0 = {}", vsc_prm.k_0);
+    }
+
     // Iterate over couplings, w_c, quality
     qualities.iter().enumerate().for_each(|(qual_ind, quality)| {
         prm.quality = *quality;
@@ -36,7 +47,6 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
             vsc_prm.coupling = *coupling;
 
             let mut k: Array1<f64> = Array1::zeros(omegas.len());
-
             
             let prog_style = ProgressStyle::default_bar()
                 .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({eta})").unwrap();
@@ -158,22 +168,14 @@ fn calc_k(omegas:&Array1<f64>, vsc_prm: &VscParameters, ell_n: &Array1<f64>, prm
     omegas.indexed_iter().for_each(|(ind,omega)|{
         let _t1 = lorentzian(omega, w_0, t_c);
         let _t2 = bose_einstein_dist(beta, w_0);
-        // let temp = t1 * t2 ;
-        // if temp.is_nan(){
-        //     println!("temp is NaN");
-        // }
-        // k += ell_n[ind] * lorentzian(omega, w_0, t_c) * bose_einstein_dist(beta, w_0);
-
-        let _temp = ell_n.to_vec();
-        let _temp2 = ell_n[ind];
 
         k += ell_n[ind] * lorentzian(omega, w_0, t_c) * bose_einstein_dist(beta, w_0);// * (- beta * omega).exp();
     });
 
     // println!("k = {}",k);
 
-    k * 4.0 * vsc_prm.coupling.powi(2)* dw
-    // 1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
+    // k * 4.0 * vsc_prm.coupling.powi(2)* dw
+    1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
 }
 
 fn calc_t_c(prm:&Parameters) -> f64 {
@@ -190,8 +192,65 @@ fn lorentzian(omega:&f64, w_0: &f64, t_c:f64) -> f64 {
     numerator/denominator
 }
 
-fn _calc_k_0() {
-    
+fn calc_k_0(omegas:&Array1<f64>, vsc_prm: &VscParameters, prm:&Parameters, off_scale: f64) -> f64{
+
+    // let off_scale = 10.0;
+
+    let l_c = off_scale * prm.l_c;
+    let w_0 = vsc_prm.w_0;
+    let _temp = 2. * PI / l_c * prm.c;
+
+    let q_0 = ((w_0 / prm.c).powi(2) - (2. * PI / l_c).powi(2)).sqrt();
+
+    let q_range = (q_0 - 4.0* prm.del_k / off_scale/ off_scale, q_0 +  4.0*prm.del_k / off_scale/ off_scale);
+
+    let q_pars = Array1::linspace(q_range.0, q_range.1, prm.n_q);
+
+    let r = prm.r;
+
+    let mut ell_n = 0.0;
+    let mut _temp: Vec<f64> = Vec::new();
+    q_pars.iter().for_each(|q| {
+        let q_z = (w_0.powi(2) / prm.c.powi(2) - q.powi(2)).sqrt();
+
+        let mut weight: c64 = 1.0 + r * (l_c * q_z * c64::i()).exp(); 
+        weight /= 1.0 - r*r*(2.0 * l_c * q_z * c64::i()).exp();
+
+        let re_weight = weight.norm_sqr() - 1.0;
+
+        _temp.push(re_weight);
+
+        if re_weight.is_nan() {
+            println!("Is NaN");
+        }
+
+        if re_weight > 0.0 { 
+            ell_n += re_weight;
+        }
+
+    });
+    ell_n *= (q_range.1 - q_range.0) / prm.n_q as f64;
+
+
+    let mut k = 0.0;
+
+    let t_c = calc_t_c(&prm);
+    let w_0 = &vsc_prm.w_0;
+    let beta = &vsc_prm.beta;
+
+    let dw = (prm.w_range.1 - prm.w_range.0) / omegas.len() as f64;
+
+    omegas.iter().for_each(|omega|{
+        let _t1 = lorentzian(omega, w_0, t_c);
+        let _t2 = bose_einstein_dist(beta, w_0);
+
+        k += ell_n * lorentzian(omega, w_0, t_c) * bose_einstein_dist(beta, w_0);// * (- beta * omega).exp();
+    });
+
+    // println!("k = {}",k);
+
+    k * 4.0 * vsc_prm.coupling.powi(2)* dw * off_scale * off_scale
+
 }
 
 fn bose_einstein_dist(beta:&f64, w_0: &f64) -> f64{

@@ -47,12 +47,12 @@ pub fn enhancement_function (omega:f64, q_par:f64, prm:&Parameters) -> f64 {
     let mut weight: c64 = 1.0 + r * (prm.l_c * q_z * c64::i()).exp(); 
     weight /= 1.0 - r*r*(2.0 * prm.l_c * q_z * c64::i()).exp();
 
-    let re_weight = weight.norm() - 1.0;
+    let re_weight = weight.norm_sqr() - 1.0;
     // let re_weight = weight.norm();
 
     if re_weight < 0.0 { return 0.0}
 
-    re_weight * re_weight
+    re_weight
 }
 
 fn integrate_bin (mut bin:Array2<f64>, omegas_bin:Array1<f64>, q_pars: &Array1<f64>, prm:&Parameters) -> f64 {
@@ -124,9 +124,11 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
     let num_std = 5.0;
     // let read_files = true;
 
-    let fname = format!("data2/ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
+    let fname = format!("data3/ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
 
-    if Path::new(fname.as_str()).is_file(){
+    let read_file = false;
+
+    if Path::new(fname.as_str()).is_file() & read_file{
         // println!("Reading: '{}'", fname);
 
         let weights: Array1<f64> = read_npy(fname).unwrap();
@@ -178,6 +180,8 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
                     q_pars = Array1::linspace(0.0, 0.5, prm.n_q);
                 }
 
+                let inversion = false;
+                let counter = 0;
                 q_pars.to_vec().iter().zip(integrands.iter_mut()).for_each(|(q_par,integrand)| {
     
                     let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
@@ -198,6 +202,7 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
                     else {
                         jacobian *= PI;
                     }
+
                     let temp = enhancement_function(*omega, *q_par, &prm) * jacobian;
                     *integrand = temp;
                 });
