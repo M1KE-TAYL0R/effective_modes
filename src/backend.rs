@@ -121,12 +121,12 @@ pub fn calc_dispersion (prm:&Parameters, omegas:&Array1<f64>, q_pars: &Array1<f6
 pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
     // println!("Calculating Q = {}", prm.quality);
     // let mut q_pars = q_pars.clone();
-    let num_std = 5.0;
+    let num_std = 6.0;
     // let read_files = true;
 
-    let fname = format!("data3/ell_n__w{}_nq{}_qual{}.npy", prm.w_c, prm.n_q, prm.quality);
+    let fname = format!("data/{}_{}_{}_{}_{}_{}.npy", prm.w_c, prm.n_q, prm.n_w, prm.n_w_bins, prm.quality,num_std);
 
-    let read_file = false;
+    let read_file = true;
 
     if Path::new(fname.as_str()).is_file() & read_file{
         // println!("Reading: '{}'", fname);
@@ -158,18 +158,14 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
                 let w_bound = num_std * prm.c * prm.del_k;
                 // let w_bound = prm.w_c * 0.2;
                 if *omega > prm.w_c + w_bound {
-                    let q_plus = ((omega + 3.0 *  w_bound).powi(2) - prm.w_c.powi(2)).sqrt() / prm.c;
+                    let q_plus = ((omega + 4.0 *  w_bound).powi(2) - prm.w_c.powi(2)).sqrt() / prm.c;
                     let q_minus = ((omega - w_bound).powi(2) - prm.w_c.powi(2)).sqrt() / prm.c;
                     q_pars = Array1::linspace(q_minus, q_plus, prm.n_q);
                     let _temp = w_bound / prm.w_c;
                     dq = (q_plus - q_minus)/ (prm.n_q as f64);
                 }
                 else if *omega > prm.w_c - w_bound {
-                    // // q_pars = Array1::linspace(0.0, 0.5, prm.n_q);
-                    // q_pars = Array1::linspace(0.0, num_std* prm.del_k, prm.n_q);
-                    // dq = (num_std* prm.del_k)/ (prm.n_q as f64);
-
-                    let q_plus = ((omega + 3.0* w_bound).powi(2) - prm.w_c.powi(2)).sqrt() / prm.c;
+                    let q_plus = ((omega + 4.0* w_bound).powi(2) - prm.w_c.powi(2)).sqrt() / prm.c;
                     q_pars = Array1::linspace(0.0, q_plus, prm.n_q);
                     dq = q_plus / (prm.n_q as f64);
                 }
@@ -180,14 +176,14 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
                     q_pars = Array1::linspace(0.0, 0.5, prm.n_q);
                 }
 
-                let inversion = false;
-                let counter = 0;
+                // let inversion = false;
+                // let counter = 0;
                 q_pars.to_vec().iter().zip(integrands.iter_mut()).for_each(|(q_par,integrand)| {
     
                     let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
                     
                     let mut jacobian =  q_par * omega / prm.c / q_z;
-                    if q_z.is_nan() { jacobian = 0.0}
+                    // if q_z.is_nan() { jacobian = 0.0}
     
                     let qn_2 = (omega / prm.c).powi(2);
                     let qn_z_2 = (2.0 * PI / prm.l_c).powi(2);
@@ -204,10 +200,20 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
                     }
 
                     let temp = enhancement_function(*omega, *q_par, &prm) * jacobian;
-                    *integrand = temp;
+
+                    if temp.is_normal(){
+                        *integrand = temp;
+                    }
+                    else {
+                        *integrand = 0.0;
+                    }
+                    
                 });
                 let _temp = integrands.to_vec();
                 let sum = integrands.iter().sum::<f64>();
+                if sum.is_nan(){
+                    print!("Panic!!!");
+                }
                 weight +=  sum * dq;
             });
 

@@ -17,7 +17,7 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
     // let qualities = vec![500.,200.,50.];
     // let couplings = vec![3.125e-4, 6.25e-4, 9.375e-4, 1.25e-3];
 
-    let qualities = vec![5000., 500.,200., 50.];
+    let qualities = vec![500.,200., 50.];
     let couplings = vec![1.25e-3];
 
     vsc_prm.to_au();
@@ -31,12 +31,14 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
 
     let test_k_0 = true;
     if test_k_0 {
-        prm.quality = 100.0;
+        prm.quality = 1000.0;
         vsc_prm.coupling = 1.25e-3;
         prm = set_cavity_params(prm.clone());
 
         vsc_prm.k_0 = calc_k_0(&omegas, &vsc_prm, &prm, 100.0);
         println!("Vsc k_0 = {}", vsc_prm.k_0);
+        
+        // return
     }
 
     // Iterate over couplings, w_c, quality
@@ -68,6 +70,7 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
                 k[w_ind] = calc_k(&w_scan,&vsc_prm,&ell_n,&prm);
 
                 if k[w_ind].is_nan() {
+                    println!("k is NaN!!!!");
                     println!("l_n/ V = {}", ell_n);
                     println!("omega = {}", w_c);
                 }
@@ -106,7 +109,21 @@ fn plot_k_vsc(k_vsc_qual_coup: &HashMap<(usize,usize), Array1<f64>> , omegas_cm:
         .max_by(|(_,a),(_,b)| a.total_cmp(b))
         .unwrap();
 
+
+    let mins_y: Vec<((usize,usize),f64)> = k_vsc_qual
+        .iter()
+        .map(|(a,b)| 
+        (*a,*b.to_vec().iter().min_by(|a,b| a.total_cmp(b))
+        .unwrap()))
+        .collect();
+
+    let min_y = *mins_y
+        .iter()
+        .min_by(|(_,a),(_,b)| a.total_cmp(b))
+        .unwrap();
+    
     println!("Max k_vsc = {}", {max_y.1});
+    println!("Min k_vsc = {}", {min_y.1});
 
     let scale: u32 = 10;
 
@@ -124,7 +141,7 @@ fn plot_k_vsc(k_vsc_qual_coup: &HashMap<(usize,usize), Array1<f64>> , omegas_cm:
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
-        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), (1e-8 .. max_y.1).log_scale())?;
+        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), (min_y.1 .. max_y.1).log_scale())?;
 
     chart.configure_mesh()
         .x_label_style(("helvetica", 20*scale))
@@ -175,7 +192,8 @@ fn calc_k(omegas:&Array1<f64>, vsc_prm: &VscParameters, ell_n: &Array1<f64>, prm
     // println!("k = {}",k);
 
     // k * 4.0 * vsc_prm.coupling.powi(2)* dw
-    1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
+    // 1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
+    k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0 // / (prm.w_c / vsc_prm.w_0)
 }
 
 fn calc_t_c(prm:&Parameters) -> f64 {
@@ -192,6 +210,9 @@ fn lorentzian(omega:&f64, w_0: &f64, t_c:f64) -> f64 {
     numerator/denominator
 }
 
+
+
+
 fn calc_k_0(omegas:&Array1<f64>, vsc_prm: &VscParameters, prm:&Parameters, off_scale: f64) -> f64{
 
     // let off_scale = 10.0;
@@ -202,30 +223,48 @@ fn calc_k_0(omegas:&Array1<f64>, vsc_prm: &VscParameters, prm:&Parameters, off_s
 
     let q_0 = ((w_0 / prm.c).powi(2) - (2. * PI / l_c).powi(2)).sqrt();
 
-    let q_range = (q_0 - 4.0* prm.del_k / off_scale/ off_scale, q_0 +  4.0*prm.del_k / off_scale/ off_scale);
+    let q_range = (q_0 - 4.0* prm.del_k / off_scale/ off_scale, q_0 +  4.0*prm.del_k / off_scale / off_scale);
 
     let q_pars = Array1::linspace(q_range.0, q_range.1, prm.n_q);
 
     let r = prm.r;
 
     let mut ell_n = 0.0;
-    let mut _temp: Vec<f64> = Vec::new();
+    // let mut _temp: Vec<f64> = Vec::new();
     q_pars.iter().for_each(|q| {
         let q_z = (w_0.powi(2) / prm.c.powi(2) - q.powi(2)).sqrt();
+        let _temp = 2. * PI / l_c;
+
+        let mut jacobian =  q * w_0 / prm.c / q_z;
+        if q_z.is_nan() { jacobian = 0.0}
+
+        let qn_2 = (w_0 / prm.c).powi(2);
+        let qn_z_2 = (2.0 * PI / prm.l_c).powi(2);
+        let qn_par = (qn_2 - qn_z_2).sqrt();
+        
+        if prm.del_k < qn_par {
+
+            let del_theta = 2.0 * (prm.del_k / qn_par).asin();
+
+            jacobian *= del_theta;
+        }
+        else {
+            jacobian *= PI;
+        }
 
         let mut weight: c64 = 1.0 + r * (l_c * q_z * c64::i()).exp(); 
         weight /= 1.0 - r*r*(2.0 * l_c * q_z * c64::i()).exp();
 
         let re_weight = weight.norm_sqr() - 1.0;
 
-        _temp.push(re_weight);
+        // _temp.push(re_weight);
 
         if re_weight.is_nan() {
             println!("Is NaN");
         }
 
         if re_weight > 0.0 { 
-            ell_n += re_weight;
+            ell_n += re_weight * jacobian;
         }
 
     });
@@ -244,12 +283,12 @@ fn calc_k_0(omegas:&Array1<f64>, vsc_prm: &VscParameters, prm:&Parameters, off_s
         let _t1 = lorentzian(omega, w_0, t_c);
         let _t2 = bose_einstein_dist(beta, w_0);
 
-        k += ell_n * lorentzian(omega, w_0, t_c) * bose_einstein_dist(beta, w_0);// * (- beta * omega).exp();
+        k += ell_n * lorentzian(omega, w_0, t_c) * bose_einstein_dist(beta, w_0);
     });
 
     // println!("k = {}",k);
 
-    k * 4.0 * vsc_prm.coupling.powi(2)* dw * off_scale * off_scale
+    k * 4.0 * vsc_prm.coupling.powi(2)* dw / off_scale
 
 }
 
