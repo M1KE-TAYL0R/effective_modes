@@ -231,3 +231,107 @@ pub fn par_weights_gen(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
         out
     }
 }
+
+pub fn par_weights_gen_alt(prm: &Parameters, omegas:&Array1<f64>) -> Array1<f64>{
+
+    let num_std = 6.0;
+
+    let fname = format!("data/{}_{}_{}_{}_{}_{}.npy", prm.w_c, prm.n_q, prm.n_w, prm.n_w_bins, prm.quality,num_std);
+
+    
+    let dw = (prm.w_range.1 - prm.w_range.0) / (prm.n_w as f64);
+
+    let bin_size = prm.n_w / prm.n_w_bins;
+    let bins: Array1<f64> = Array1::zeros(prm.n_w_bins);
+
+    let weights = bins.to_vec().into_par_iter().enumerate().map(|(bin_ind,_)| {
+
+        let mut weight: f64 = 0.0;
+        let dq = (prm.q_range.1 - prm.q_range.0) / prm.n_q as f64;
+        
+        let omegas_bin = omegas.slice(s![(bin_ind * bin_size) .. ((bin_ind+1)*bin_size)]);
+
+        let mut q_par_start = 0.0;
+        omegas_bin.iter().for_each(| omega|  {
+
+            let mut inversion = false;
+            let mut prev_nan = true;
+            let mut cont = true;
+            let mut q_par: f64 = q_par_start;
+            let mut sum = 0.0;
+            let mut _counter = 0;
+            let mut _temp: Vec<f64> = vec![];
+
+            // Integrate over q_par
+            while cont {
+                let q_z = (omega.powi(2) - prm.c*prm.c * q_par.powi(2)).sqrt();
+                
+                let mut jacobian =  q_par * omega / prm.c / q_z;
+                // if q_z.is_nan() { jacobian = 0.0}
+
+                let qn_2 = (omega / prm.c).powi(2);
+                let qn_z_2 = (2.0 * PI / prm.l_c).powi(2);
+                let qn_par = (qn_2 - qn_z_2).sqrt();
+                
+                if prm.del_k < qn_par {
+
+                    let del_theta = 2.0 * (prm.del_k / qn_par).asin();
+
+                    jacobian *= del_theta;
+                }
+                else {
+                    jacobian *= PI;
+                }
+
+                let integrand = enhancement_function(*omega, q_par, &prm) * jacobian;
+                
+                _temp.push(integrand);
+
+
+                if integrand.is_nan() && prev_nan == false{
+                    inversion = true;
+                }
+
+                if integrand.is_normal(){
+                    sum += integrand;
+                    if prev_nan == true {
+                        q_par_start = q_par
+                    };
+
+                // Change future loop values
+                    prev_nan = false;
+                }
+                else {
+                    sum += 0.0;
+                    prev_nan = true;
+                }
+
+                q_par += dq;
+
+                if inversion == true && integrand.is_nan(){
+                    cont = false;
+                }
+                
+                _counter += 1;
+            };
+
+            if sum.is_nan(){
+                print!("Panic!!!");
+            }
+            weight +=  sum * dq;
+        });
+
+        weight
+    }).collect::<Vec<f64>>();
+
+    let weights = Array1::from_vec(weights);
+
+    let out = weights  * dw;
+
+    // println!("Saving: '{}'", fname);
+
+    write_npy(fname, &out).unwrap();
+
+    out
+}
+

@@ -25,13 +25,13 @@ fn define_parameters() -> Parameters {
         // n_w: 2000,                       // Number of \omega grid points
         // n_q: 2000,                      // Number of q_\| grid points per bin integration
         // n_w_bins: 2000,                   // Number of omega_n bins
-        n_w: 5000,                       // Number of \omega grid points
+        n_w: 2000,                       // Number of \omega grid points
         n_q: 240,                      // Number of q_\| grid points per bin integration
-        n_w_bins: 5000,                   // Number of omega_n bins
+        n_w_bins: 2000,                   // Number of omega_n bins
         del_k: 0.0,                       // Placeholder
         quality: 50.0,                   // Cavity Quality Factor
         q_range: (0.0,0.5),              // Range of q_\| points integrated over
-        w_range: (1100. / 219474.63, 1300. / 219474.63),            // Range of omega_n
+        w_range: (100. / 219474.63, 500. / 219474.63),            // Range of omega_n
         // q_range: (-5.0,5.0),              // Range of q_\| points integrated over
         // w_range: (0.099, 0.108),            // Range of omega_n
         // q_range: (0.0,10.0),              // Range of q_\| points integrated over

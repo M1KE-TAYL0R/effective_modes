@@ -1,4 +1,4 @@
-use crate::backend::{set_cavity_params,par_weights_gen};
+use crate::backend::{set_cavity_params,par_weights_gen_alt};
 // use crate::ell_n::weights_gen;
 use crate::parameters::{Parameters,VscParameters};
 use plotters::{prelude::*, style::{full_palette::{DEEPORANGE_A400, LIGHTBLUE_A700, LIME_A700}, Color}};
@@ -31,12 +31,12 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
 
     let test_k_0 = true;
     if test_k_0 {
-        prm.quality = 1000.0;
+        prm.quality = 100.0;
         vsc_prm.coupling = 1.25e-3;
         prm = set_cavity_params(prm.clone());
 
         vsc_prm.k_0 = calc_k_0(&omegas, &vsc_prm, &prm, 100.0);
-        println!("Vsc k_0 = {}", vsc_prm.k_0);
+        println!("Vsc k_0 = {:e}", vsc_prm.k_0);
         
         // return
     }
@@ -55,19 +55,25 @@ pub fn vsc_rate(mut prm: Parameters, mut vsc_prm: VscParameters) {
 
             omegas.clone().indexed_iter().progress_with_style(prog_style).for_each(|(w_ind,w_c)| {
                 prm.w_c = *w_c;
-                prm.w_range = (prm.w_c * 0.9, prm.w_c * 1.4);
+                
+                let mut max_w_c = vsc_prm.w_0 * 1.5;
+                if prm.w_c > max_w_c {
+                    max_w_c = prm.w_c * 1.5;
+                }
+                prm.w_range = (prm.w_c * 0.9, max_w_c);
                 
                 prm = set_cavity_params(prm.clone());
 
                 let w_scan = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w);          
 
-                let ell_n = par_weights_gen(&prm, &w_scan);
+                let ell_n = par_weights_gen_alt(&prm, &w_scan);
 
                 let _temp = q_pars.to_vec();
                 let _temp2 = ell_n.to_vec();
                 let _temp1: f64 =  ell_n.to_vec().iter().sum();
 
-                k[w_ind] = calc_k(&w_scan,&vsc_prm,&ell_n,&prm);
+                let w_scan_bins = Array1::linspace(prm.w_range.0, prm.w_range.1,prm.n_w_bins);    
+                k[w_ind] = calc_k(&w_scan_bins,&vsc_prm,&ell_n,&prm);
 
                 if k[w_ind].is_nan() {
                     println!("k is NaN!!!!");
@@ -141,7 +147,7 @@ fn plot_k_vsc(k_vsc_qual_coup: &HashMap<(usize,usize), Array1<f64>> , omegas_cm:
         // .caption("Test Dispersion", ("helvetica", 50*scale_factor))
         .x_label_area_size(70*scale)
         .y_label_area_size(100*scale)
-        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), (min_y.1 .. max_y.1).log_scale())?;
+        .build_cartesian_2d((omegas_cm[0])..*(omegas_cm.last().unwrap()), min_y.1 .. max_y.1)?;
 
     chart.configure_mesh()
         .x_label_style(("helvetica", 20*scale))
@@ -193,7 +199,7 @@ fn calc_k(omegas:&Array1<f64>, vsc_prm: &VscParameters, ell_n: &Array1<f64>, prm
 
     // k * 4.0 * vsc_prm.coupling.powi(2)* dw
     // 1.0 + k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0
-    k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0 // / (prm.w_c / vsc_prm.w_0)
+    k * 4.0 * vsc_prm.coupling.powi(2)* dw / vsc_prm.k_0  / prm.l_c
 }
 
 fn calc_t_c(prm:&Parameters) -> f64 {
@@ -288,7 +294,7 @@ fn calc_k_0(omegas:&Array1<f64>, vsc_prm: &VscParameters, prm:&Parameters, off_s
 
     // println!("k = {}",k);
 
-    k * 4.0 * vsc_prm.coupling.powi(2)* dw / off_scale
+    k * 4.0 * vsc_prm.coupling.powi(2)* dw / l_c
 
 }
 
